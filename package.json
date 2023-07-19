@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "async": "^1.5.0",
-    "bagpipes": "jfanjoy/bagpipes#package-updates",
+    "bagpipes": "jfanjoy/bagpipes",
     "body-parser": "^1.14.1",
     "config": "^1.16.0",
     "cors": "^2.5.3",
@@ -31,7 +31,7 @@
     "multer": "^1.0.6",
     "parseurl": "^1.3.0",
     "qs": "^6.4.0",
-    "sway": "jfanjoy/sway#package-update",
+    "sway": "jfanjoy/sway",
     "type-is": "^1.6.9"
   },
   "devDependencies": {
