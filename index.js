@@ -26,10 +26,12 @@ module.exports = {
   create
 }
 
+const fs = require('node:fs')
 const path = require('path')
 const sway = require('sway')
 const debug = require('debug')('swagger')
 const bagpipes = require('bagpipes')
+const YAML = require('js-yaml')
 const EventEmitter = require('events').EventEmitter
 const util = require('util')
 
@@ -148,6 +150,15 @@ function Runner (appJsConfig, cb) {
       startWithErrors: false,
       startWithWarnings: true
     }
+  }
+  const cfgFile = `${appJsConfig.configDir}/default.yaml`
+  try {
+    fs.accessSync(cfgFile)
+    const data = fs.readFileSync(cfgFile)
+    const parsed = YAML.load(data, 'utf8')
+    Object.assign(Config.swagger, parsed.swagger)
+  } catch (err) {
+    debug('no app config found')
   }
 
   this.config = Config
