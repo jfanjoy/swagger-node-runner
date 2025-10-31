@@ -1,139 +1,132 @@
-'use strict';
+'use strict'
 
-var debug = require('debug')('swagger:swagger_router');
-var path = require('path');
-var assert = require('assert');
-var SWAGGER_ROUTER_CONTROLLER = 'x-swagger-router-controller';
-var CONTROLLER_INTERFACE_TYPE = 'x-controller-interface';
-var allowedCtrlInterfaces = ["middleware", "pipe", "auto-detect"];
-var util = require('util');
+const debug = require('debug')('swagger:swagger_router')
+const path = require('path')
+const assert = require('assert')
+const SWAGGER_ROUTER_CONTROLLER = 'x-swagger-router-controller'
+const CONTROLLER_INTERFACE_TYPE = 'x-controller-interface'
+const allowedCtrlInterfaces = ['middleware', 'pipe', 'auto-detect']
 
-module.exports = function create(fittingDef, bagpipes) {
+module.exports = function create (fittingDef, bagpipes) {
+  debug('config: %j', fittingDef)
 
-  debug('config: %j', fittingDef);
+  assert(Array.isArray(fittingDef.controllersDirs), 'controllersDirs must be an array')
+  assert(Array.isArray(fittingDef.mockControllersDirs), 'mockControllersDirs must be an array')
 
-  assert(Array.isArray(fittingDef.controllersDirs), 'controllersDirs must be an array');
-  assert(Array.isArray(fittingDef.mockControllersDirs), 'mockControllersDirs must be an array');
-  
-  if (!fittingDef.controllersInterface) fittingDef.controllersInterface = "middleware";
-  assert( ~allowedCtrlInterfaces.indexOf(fittingDef.controllersInterface), 
+  if (!fittingDef.controllersInterface) fittingDef.controllersInterface = 'middleware'
+  assert(~allowedCtrlInterfaces.indexOf(fittingDef.controllersInterface),
     'value in swagger_router config.controllersInterface - can be one of ' + allowedCtrlInterfaces + ' but got: ' + fittingDef.controllersInterface
-  );
+  )
 
-  var swaggerNodeRunner = bagpipes.config.swaggerNodeRunner;
-  swaggerNodeRunner.api.getOperations().forEach(function(operation) { 
-      var interfaceType = 
-            operation.controllerInterface = 
+  const swaggerNodeRunner = bagpipes.config.swaggerNodeRunner
+  swaggerNodeRunner.api.getOperations().forEach(function (operation) {
+    const interfaceType =
+            operation.controllerInterface =
             operation.definition[CONTROLLER_INTERFACE_TYPE] ||
             operation.pathObject.definition[CONTROLLER_INTERFACE_TYPE] ||
             swaggerNodeRunner.api.definition[CONTROLLER_INTERFACE_TYPE] ||
-            fittingDef.controllersInterface;
-        
-      assert( ~allowedCtrlInterfaces.indexOf(interfaceType), 
-        'whenever provided, value of ' + CONTROLLER_INTERFACE_TYPE + ' directive in openapi doc must be one of ' + allowedCtrlInterfaces + ' but got: ' + interfaceType);
+            fittingDef.controllersInterface
+
+    assert(~allowedCtrlInterfaces.indexOf(interfaceType),
+      'whenever provided, value of ' + CONTROLLER_INTERFACE_TYPE + ' directive in openapi doc must be one of ' + allowedCtrlInterfaces + ' but got: ' + interfaceType)
   })
-  
-  var appRoot = swaggerNodeRunner.config.swagger.appRoot;
-  var dependencies = swaggerNodeRunner.config.swagger.dependencies
 
-  var mockMode = !!fittingDef.mockMode || !!swaggerNodeRunner.config.swagger.mockMode;
+  const appRoot = swaggerNodeRunner.config.swagger.appRoot
+  const dependencies = swaggerNodeRunner.config.swagger.dependencies
 
-  var controllersDirs = mockMode ? fittingDef.mockControllersDirs : fittingDef.controllersDirs;
+  const mockMode = !!fittingDef.mockMode || !!swaggerNodeRunner.config.swagger.mockMode
 
-  controllersDirs = controllersDirs.map(function(dir) {
-    return path.resolve(appRoot, dir);
-  });
+  let controllersDirs = mockMode ? fittingDef.mockControllersDirs : fittingDef.controllersDirs
 
-  var controllerFunctionsCache = {};
+  controllersDirs = controllersDirs.map(function (dir) {
+    return path.resolve(appRoot, dir)
+  })
 
-  return function swagger_router(context, cb) {
-    debug('exec');
+  const controllerFunctionsCache = {}
 
-    var operation = context.request.swagger.operation;
-    var controllerName = operation[SWAGGER_ROUTER_CONTROLLER] || operation.pathObject[SWAGGER_ROUTER_CONTROLLER];
+  return function swagger_router (context, cb) {
+    debug('exec')
 
-    var controller;
+    const operation = context.request.swagger.operation
+    const controllerName = operation[SWAGGER_ROUTER_CONTROLLER] || operation.pathObject[SWAGGER_ROUTER_CONTROLLER]
+
+    let controller
 
     if (controllerName in controllerFunctionsCache) {
-
-      debug('controller in cache', controllerName);
-      controller = controllerFunctionsCache[controllerName];
-
+      debug('controller in cache', controllerName)
+      controller = controllerFunctionsCache[controllerName]
     } else if (controllerName) {
-
-      debug('loading controller %s from fs: %s', controllerName, controllersDirs);
-      for (var i = 0; i < controllersDirs.length; i++) {
-        var controllerPath = path.resolve(controllersDirs[i], controllerName);
+      debug('loading controller %s from fs: %s', controllerName, controllersDirs)
+      for (let i = 0; i < controllersDirs.length; i++) {
+        const controllerPath = path.resolve(controllersDirs[i], controllerName)
         try {
-          var ctrlObj = require(controllerPath)
+          const ctrlObj = require(controllerPath)
           controller = dependencies && typeof ctrlObj === 'function' ? ctrlObj(dependencies) : ctrlObj
-          controllerFunctionsCache[controllerName] = controller;
-          debug('controller found', controllerPath);
-          break;
+          controllerFunctionsCache[controllerName] = controller
+          debug('controller found', controllerPath)
+          break
         } catch (err) {
           if (!mockMode && i === controllersDirs.length - 1) {
-            return cb(err);
+            return cb(err)
           }
-          debug('controller not in', controllerPath);
+          debug('controller not in', controllerPath)
         }
       }
     }
 
     if (controller) {
-
-      var operationId = operation.definition.operationId || context.request.method.toLowerCase();
-      var ctrlType = 
+      const operationId = operation.definition.operationId || context.request.method.toLowerCase()
+      const ctrlType =
             operation.definition['x-controller-type'] ||
             operation.pathObject.definition['x-controller-type']
 
-      var controllerFunction = controller[operationId];
+      const controllerFunction = controller[operationId]
 
       if (controllerFunction && typeof controllerFunction === 'function') {
         if (operation.controllerInterface == 'auto-detect') {
-            operation.controllerInterface = 
+          operation.controllerInterface =
               controllerFunction.length == 3
                 ? 'middleware'
-                : 'pipe';
-            debug("auto-detected interface-type for operation '%s' at [%s] as '%s'", operationId, operation.pathToDefinition, operation.controllerInterface)
+                : 'pipe'
+          debug("auto-detected interface-type for operation '%s' at [%s] as '%s'", operationId, operation.pathToDefinition, operation.controllerInterface)
         }
-        
-        debug('running controller, as %s', operation.controllerInterface);
+
+        debug('running controller, as %s', operation.controllerInterface)
         return operation.controllerInterface == 'pipe'
           ? controllerFunction(context, cb)
-          : controllerFunction(context.request, context.response, cb);
+          : controllerFunction(context.request, context.response, cb)
       }
 
-      var msg = util.format('Controller %s doesn\'t export handler function %s', controllerName, operationId);
+      const msg = `Controller ${controllerName} doesn't export handler function ${operationId}`
       if (mockMode) {
-        debug(msg);
+        debug(msg)
       } else {
-        return cb(new Error(msg));
+        return cb(new Error(msg))
       }
     }
 
     if (mockMode) {
+      const statusCode = parseInt(context.request.get('_mockreturnstatus')) || 200
 
-      var statusCode = parseInt(context.request.get('_mockreturnstatus')) || 200;
-
-      var mimetype = context.request.get('accept') || 'application/json';
-      var response  = operation.getResponse(statusCode) || operation.getResponse('default');
-      var mock = response.getExample(mimetype);
+      const mimetype = context.request.get('accept') || 'application/json'
+      const response = operation.getResponse(statusCode) || operation.getResponse('default')
+      let mock = response.getExample(mimetype)
 
       if (mock) {
-        debug('returning mock example value', mock);
+        debug('returning mock example value', mock)
       } else {
-        var operationResponse = operation.getResponse(statusCode) || operation.getResponse('default');
-        mock = operationResponse.getSample();
-        debug('returning mock sample value', mock);
+        const operationResponse = operation.getResponse(statusCode) || operation.getResponse('default')
+        mock = operationResponse.getSample()
+        debug('returning mock sample value', mock)
       }
 
-      context.headers['Content-Type'] = mimetype;
-      context.statusCode = statusCode;
+      context.headers['Content-Type'] = mimetype
+      context.statusCode = statusCode
 
-      return cb(null, mock);
+      return cb(null, mock)
     }
 
     // for completeness, we should never actually get here
-    cb(new Error(util.format('No controller found for %s in %j', controllerName, controllersDirs)));
+    cb(new Error(`No controller found for ${controllerName} in ${JSON.stringify(controllersDirs)}`))
   }
-};
+}

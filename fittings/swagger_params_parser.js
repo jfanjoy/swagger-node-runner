@@ -1,124 +1,115 @@
-'use strict';
+'use strict'
 
-var debug = require('debug')('swagger:swagger_params_parser');
-var debugContent = require('debug')('swagger:content');
-var path = require('path');
-var helpers = require('../lib/helpers');
+const debug = require('debug')('swagger:swagger_params_parser')
+const debugContent = require('debug')('swagger:content')
+const path = require('path')
+const helpers = require('../lib/helpers')
 
-var bodyParser = require('body-parser');
-var async = require('async');
-var _ = require('lodash');
+const bodyParser = require('body-parser')
+const async = require('async')
 
-module.exports = function create(fittingDef, bagpipes) {
+module.exports = function create (fittingDef, bagpipes) {
+  debug('config: %j', fittingDef)
 
-  debug('config: %j', fittingDef);
-
-  _.defaults(fittingDef, {
+  fittingDef = Object.assign({
     jsonOptions: {
       type: ['json', 'application/*+json']
     },
     urlencodedOptions: {
       extended: false
     },
-    multerOptions: {
-      inMemory: true
-    },
     textOptions: {
       type: '*/*'
     }
-  });
+  }, fittingDef)
 
-  return function swagger_params_parser(context, next) {
-    debug('exec');
+  return function swagger_params_parser (context, next) {
+    debug('exec')
 
-    var req = context.request;
-    parseRequest(req, fittingDef, function(err) {
-      if (err) { /* istanbul ignore next */ return next(err); }
+    const req = context.request
+    parseRequest(req, fittingDef, function (err) {
+      if (err) { /* istanbul ignore next */ return next(err) }
 
-      var params = req.swagger.params = {};
-      req.swagger.operation.parameterObjects.forEach(function(parameter) {
-        params[parameter.name] = parameter.getValue(req); // note: we do not check for errors here
-      });
+      const params = req.swagger.params = {}
+      req.swagger.operation.parameterObjects.forEach(function (parameter) {
+        params[parameter.name] = parameter.getValue(req) // note: we do not check for errors here
+      })
 
-      next(null, params);
-    });
+      next(null, params)
+    })
   }
-};
+}
 
-function parseRequest(req, fittingDef, cb) {
+function parseRequest (req, fittingDef, cb) {
+  if (req.query && req.body && req.files) { return cb() }
 
-  if (req.query && req.body && req.files) { return cb(); }
+  let shouldParseBody = false
+  let shouldParseForm = false
+  let shouldParseQuery = false
+  const multFields = []
 
-  var shouldParseBody = false;
-  var shouldParseForm = false;
-  var shouldParseQuery = false;
-  var multFields = [];
-
-  req.swagger.operation.parameterObjects.forEach(function(parameter) {
-
+  req.swagger.operation.parameterObjects.forEach(function (parameter) {
     switch (parameter.in) {
-
       case 'body':
-        shouldParseBody = true;
-        break;
+        shouldParseBody = true
+        break
 
       case 'formData':
-        shouldParseForm = true;
+        shouldParseForm = true
         if (parameter.type === 'file') {
-          multFields.push({ name: parameter.name });
+          multFields.push({ name: parameter.name })
         }
-        break;
+        break
 
       case 'query':
-        shouldParseQuery = true;
-        break;
+        shouldParseQuery = true
+        break
     }
-  });
+  })
 
-  if (!req.query && shouldParseQuery) { helpers.queryString(req); }
+  if (!req.query && shouldParseQuery) { helpers.queryString(req) }
 
-  if (req.body || (!shouldParseBody && !shouldParseForm)) { return cb(); }
+  if (req.body || (!shouldParseBody && !shouldParseForm)) { return cb() }
 
-  var res = null;
-  debugContent('parsing req.body for content-type: %s', req.headers['content-type']);
+  const res = null
+  debugContent('parsing req.body for content-type: %s', req.headers['content-type'])
   async.series([
-    function parseMultipart(cb) {
-      if (multFields.length === 0) { return cb(); }
+    function parseMultipart (cb) {
+      if (multFields.length === 0) { return cb() }
       return cb(new Error('file uploads are not supported by this api'))
     },
-    function parseUrlencoded(cb) {
-      if (req.body || !shouldParseForm) { return cb(); }
-      if (skipParse(fittingDef.urlencodedOptions, req)) { return cb(); } // hack: see skipParse function
-      var urlEncodedBodyParser = bodyParser.urlencoded(fittingDef.urlencodedOptions);
-      urlEncodedBodyParser(req, res, cb);
+    function parseUrlencoded (cb) {
+      if (req.body || !shouldParseForm) { return cb() }
+      if (skipParse(fittingDef.urlencodedOptions, req)) { return cb() } // hack: see skipParse function
+      const urlEncodedBodyParser = bodyParser.urlencoded(fittingDef.urlencodedOptions)
+      urlEncodedBodyParser(req, res, cb)
     },
-    function parseJson(cb) {
+    function parseJson (cb) {
       if (req.body) {
-        debugContent('urlencoded parsed req.body:', req.body);
-        return cb();
+        debugContent('urlencoded parsed req.body:', req.body)
+        return cb()
       }
-      if (skipParse(fittingDef.jsonOptions, req)) { return cb(); } // hack: see skipParse function
-      bodyParser.json(fittingDef.jsonOptions)(req, res, cb);
+      if (skipParse(fittingDef.jsonOptions, req)) { return cb() } // hack: see skipParse function
+      bodyParser.json(fittingDef.jsonOptions)(req, res, cb)
     },
-    function parseText(cb) {
+    function parseText (cb) {
       if (req.body) {
-        debugContent('json parsed req.body:', req.body);
-        return cb();
+        debugContent('json parsed req.body:', req.body)
+        return cb()
       }
-      if (skipParse(fittingDef.textOptions, req)) { return cb(); } // hack: see skipParse function
-      bodyParser.text(fittingDef.textOptions)(req, res, function(err) {
-        if (req.body) { debugContent('text parsed req.body:', req.body); }
-        cb(err);
-      });
+      if (skipParse(fittingDef.textOptions, req)) { return cb() } // hack: see skipParse function
+      bodyParser.text(fittingDef.textOptions)(req, res, function (err) {
+        if (req.body) { debugContent('text parsed req.body:', req.body) }
+        cb(err)
+      })
     }
-  ], function finishedParseBody(err) {
-    return cb(err);
-  });
-
+  ], function finishedParseBody (err) {
+    return cb(err)
+  })
 }
 
 // hack: avoids body-parser issue: https://github.com/expressjs/body-parser/issues/128
-var typeis = require('type-is').is;
-function skipParse(options, req) {
-  return typeof options.type !== 'function' && !Boolean(typeis(req, options.type));
+const typeis = require('type-is').is
+function skipParse (options, req) {
+  return typeof options.type !== 'function' && !typeis(req, options.type)
 }
