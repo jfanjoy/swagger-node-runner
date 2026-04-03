@@ -1,6 +1,6 @@
 {
   "name": "swagger-node-runner",
-  "version": "0.10.2",
+  "version": "0.11.0",
   "description": "Swagger loader and middleware utilities",
   "keywords": [
     "swagger",
@@ -18,13 +18,13 @@
   },
   "dependencies": {
     "async": "^1.5.0",
-    "bagpipes": "github:jfanjoy/bagpipes#v0.2.5",
+    "bagpipes": "github:jfanjoy/bagpipes#v0.2.6",
     "body-parser": "^1.14.1",
     "cors": "^2.5.3",
     "debug": "^2.1.3",
     "js-yaml": "^3.3.0",
     "parseurl": "^1.3.0",
-    "sway": "jfanjoy/sway",
+    "sway": "github:jfanjoy/sway#v3.2.0",
     "type-is": "^1.6.9"
   },
   "devDependencies": {
